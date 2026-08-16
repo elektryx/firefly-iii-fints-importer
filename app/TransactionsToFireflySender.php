@@ -211,7 +211,12 @@ class TransactionsToFireflySender
                 $this->regex_match,
                 $this->regex_replace
             );
-        
+            
+            Logger::trace(
+                "Transaction filter: description=[" . $description . "], filters=" .
+                json_encode($this->transaction_filter)
+            );
+            
             if (!self::matches_transaction_filter(
                 $description,
                 $this->transaction_filter
