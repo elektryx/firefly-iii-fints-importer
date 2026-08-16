@@ -20,6 +20,7 @@ class Configuration {
     public $choose_account_to;
     public $description_regex_match;
     public $description_regex_replace;
+    public $transaction_filter;
     public $force_mt940;
 }
 
@@ -56,6 +57,7 @@ class ConfigurationFactory
         }
         $configuration->description_regex_match   = $contentArray["description_regex_match"];
         $configuration->description_regex_replace = $contentArray["description_regex_replace"];
+        $configuration->transaction_filter        = $contentArray["transaction_filter"] ?? [];
         $configuration->force_mt940               = filter_var($contentArray["force_mt940"] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         return $configuration;
