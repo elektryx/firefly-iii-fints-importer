@@ -137,19 +137,40 @@ class TransactionsToFireflySender
         );
     }
 
-private static function get_transaction_description(
-    Transaction $transaction,
-    string $regex_match,
-    string $regex_replace
-): string {
-    $description = self::get_transaction_description(
-    $transaction,
-    $regex_match,
-    $regex_replace
-    );
-
-    return $description;
-}
+    private static function get_transaction_description(
+        Transaction $transaction,
+        string $regex_match,
+        string $regex_replace
+    ): string {
+        $description = $transaction->getMainDescription();
+        if ($description == "") {
+            $description = $transaction->getBookingText();
+        }
+        if ($description == "") {
+            $description = $transaction->getDescription1();
+        }
+        if ($description === null) {
+            throw new \Exception(
+                "No transaction description available."
+            );
+        }
+        if (!empty($regex_match) && !empty($regex_replace) && !empty($description)) {
+            $result = preg_replace(
+                $regex_match,
+                $regex_replace,
+                $description
+            );
+            if ($result === null) {
+                throw new \Exception(
+                    "Error in description regular expression!\n" .
+                    "Match expression: {$regex_match}\n" .
+                    "Replace expression: {$regex_replace}"
+                );
+            }
+            $description = $result;
+        }
+        return $description;
+    }
 
     private static function matches_transaction_filter(
         string $description,
