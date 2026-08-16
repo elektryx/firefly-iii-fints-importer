@@ -1,7 +1,7 @@
 version: '3'
 services: 
     app:
-        image: benkl/firefly-iii-fints-importer
+        image: ghcr.io/elektryx/firefly-iii-fints-importer:latest
         volumes:
             - ./data/configurations:/app/configurations
         ports: 
