@@ -22,7 +22,8 @@ class TransactionsToFireflySender
      */
     public function __construct(array $transactions, string $firefly_url, string $firefly_access_token, 
                                 int $firefly_account_id,
-                                string $regex_match, string $regex_replace)
+                                string $regex_match, string $regex_replace,
+                                array $transaction_filter = [])
     {
         $this->transactions         = $transactions;
         $this->firefly_url          = $firefly_url;
@@ -30,6 +31,7 @@ class TransactionsToFireflySender
         $this->firefly_account_id   = $firefly_account_id;
         $this->regex_match          = $regex_match;
         $this->regex_replace        = $regex_replace;
+        $this->transaction_filter   = $transaction_filter;
 
         $firefly_accounts_request = new GetAccountsRequest($this->firefly_url, $this->firefly_access_token);
         $firefly_accounts_request->setType(GetAccountsRequest::ASSET);
@@ -135,11 +137,74 @@ class TransactionsToFireflySender
         );
     }
 
+private static function get_transaction_description(
+    Transaction $transaction,
+    string $regex_match,
+    string $regex_replace
+): string {
+    $description = self::get_transaction_description(
+    $transaction,
+    $regex_match,
+    $regex_replace
+    );
+
+    return $description;
+}
+
+    private static function matches_transaction_filter(
+        string $description,
+        array $transaction_filter
+    ): bool {
+        // Kein Filter = alle Transaktionen importieren.
+        if (empty($transaction_filter)) {
+            return true;
+        }
+    
+        foreach ($transaction_filter as $filter) {
+            if (!is_string($filter) || $filter === '') {
+                continue;
+            }
+    
+            $matches = preg_match($filter, $description);
+    
+            if ($matches === false) {
+                throw new \Exception(
+                    "Error in transaction filter regular expression: {$filter}"
+                );
+            }
+    
+            if ($matches === 1) {
+                return true;
+            }
+        }
+    
+        return false;
+    }
+    
     public function send_transactions()
     {
         $result = array();
         foreach ($this->transactions as $transaction) {
-            $request = new PostTransactionRequest($this->firefly_url, $this->firefly_access_token);
+            $description = self::get_transaction_description(
+                $transaction,
+                $this->regex_match,
+                $this->regex_replace
+            );
+        
+            if (!self::matches_transaction_filter(
+                $description,
+                $this->transaction_filter
+            )) {
+                Logger::trace(
+                    "Transaction filtered out: " . $description
+                );
+                continue;
+            }
+        
+            $request = new PostTransactionRequest(
+                $this->firefly_url,
+                $this->firefly_access_token
+            );
 
             $request->setBody(
                 self::transform_transaction_to_firefly_request_body($transaction, $this->firefly_account_id, $this->firefly_accounts, $this->regex_match, $this->regex_replace)
@@ -167,4 +232,5 @@ class TransactionsToFireflySender
     private $firefly_accounts;
     private $regex_match;
     private $regex_replace;
+    private $transaction_filter;
 }
