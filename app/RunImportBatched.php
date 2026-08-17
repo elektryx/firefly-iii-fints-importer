@@ -19,7 +19,10 @@ function RunImport($transactions)
         $session->get('firefly_account'),
         $session->get('description_regex_match', ""),
         $session->get('description_regex_replace', ""),
-        $session->get('transaction_filter', [])
+        $session->get('transaction_filter', [
+            'include' => [],
+            'exclude' => []
+        ])
     );
     $result = $sender->send_transactions();
     if (is_array($result)) {
