@@ -57,7 +57,10 @@ class ConfigurationFactory
         }
         $configuration->description_regex_match   = $contentArray["description_regex_match"];
         $configuration->description_regex_replace = $contentArray["description_regex_replace"];
-        $configuration->transaction_filter        = $contentArray["transaction_filter"] ?? [];
+        $configuration->transaction_filter = $contentArray["transaction_filter"] ?? [
+            'include' => [],
+            'exclude' => []
+        ];
         $configuration->force_mt940               = filter_var($contentArray["force_mt940"] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         return $configuration;
