@@ -20,10 +20,14 @@ class TransactionsToFireflySender
      * @param $firefly_access_token string
      * @param int $firefly_account_id
      */
-    public function __construct(array $transactions, string $firefly_url, string $firefly_access_token, 
+    public function __construct(array $transactions,
+                                string $firefly_url,
+                                string $firefly_access_token,
                                 int $firefly_account_id,
-                                string $regex_match, string $regex_replace,
-                                array $transaction_filter = [])
+                                string $regex_match,
+                                string $regex_replace,
+                                array $transaction_filter = []
+                                ) 
     {
         $this->transactions         = $transactions;
         $this->firefly_url          = $firefly_url;
@@ -32,8 +36,12 @@ class TransactionsToFireflySender
         $this->regex_match          = $regex_match;
         $this->regex_replace        = $regex_replace;
         $this->transaction_filter   = $transaction_filter;
-
-        $firefly_accounts_request = new GetAccountsRequest($this->firefly_url, $this->firefly_access_token);
+    
+        $firefly_accounts_request = new GetAccountsRequest(
+            $this->firefly_url,
+            $this->firefly_access_token
+        );
+    
         $firefly_accounts_request->setType(GetAccountsRequest::ASSET);
         $this->firefly_accounts = $firefly_accounts_request->get();
     }
@@ -137,12 +145,13 @@ class TransactionsToFireflySender
         );
     }
 
-    private static function get_transaction_description(
-        Transaction $transaction,
-        string $regex_match,
-        string $regex_replace
-    ): string {
+    private static function get_transaction_description(Transaction $transaction,
+                                                        string $regex_match,
+                                                        string $regex_replace
+                                                        ): string 
+    {
         $description = $transaction->getMainDescription();
+    
         if ($description == "") {
             $description = $transaction->getBookingText();
         }
@@ -154,7 +163,11 @@ class TransactionsToFireflySender
                 "No transaction description available."
             );
         }
-        if (!empty($regex_match) && !empty($regex_replace) && !empty($description)) {
+        if (
+            !empty($regex_match) &&
+            !empty($regex_replace) &&
+            !empty($description)
+        ) {
             $result = preg_replace(
                 $regex_match,
                 $regex_replace,
@@ -172,51 +185,82 @@ class TransactionsToFireflySender
         return $description;
     }
 
-    private static function matches_transaction_filter(
-        string $description,
-        array $transaction_filter
-    ): bool {
-        // Kein Filter = alle Transaktionen importieren.
-        if (empty($transaction_filter)) {
-            return true;
-        }
+    private static function matches_transaction_filter(string $description,
+                                                       array $transaction_filter
+                                                      ): bool {
+        $include = $transaction_filter['include'] ?? [];
+        $exclude = $transaction_filter['exclude'] ?? [];
     
-        foreach ($transaction_filter as $filter) {
+        /*
+         * EXCLUDE hat immer Vorrang.
+         *
+         * Sobald ein Exclude-Filter matcht,
+         * wird die Transaktion nicht importiert.
+         */
+        foreach ($exclude as $filter) {
             if (!is_string($filter) || $filter === '') {
                 continue;
             }
-    
             $matches = preg_match($filter, $description);
-    
             if ($matches === false) {
                 throw new \Exception(
-                    "Error in transaction filter regular expression: {$filter}"
+                    "Error in transaction exclude filter regular expression: {$filter}"
                 );
             }
-    
+            if ($matches === 1) {
+                return false;
+            }
+        }
+        /*
+         * Kein Include-Filter bedeutet:
+         * Alles importieren.
+         */
+        if (empty($include)) {
+            return true;
+        }
+        /*
+         * Es gibt Include-Filter.
+         * Mindestens einer muss matchen.
+         */
+        foreach ($include as $filter) {
+            if (!is_string($filter) || $filter === '') {
+                continue;
+            }
+            $matches = preg_match($filter, $description);
+            if ($matches === false) {
+                throw new \Exception(
+                    "Error in transaction include filter regular expression: {$filter}"
+                );
+            }
             if ($matches === 1) {
                 return true;
             }
         }
-    
+        /*
+         * Kein Include-Filter hat gematcht.
+         */
         return false;
     }
     
     public function send_transactions()
     {
         $result = array();
+    
         foreach ($this->transactions as $transaction) {
             $description = self::get_transaction_description(
                 $transaction,
                 $this->regex_match,
                 $this->regex_replace
             );
-            
+    
             Logger::trace(
-                "Transaction filter: description=[" . $description . "], filters=" .
-                json_encode($this->transaction_filter)
+                "Transaction filter: description=[" .
+                $description .
+                "], filters=[" .
+                json_encode($this->transaction_filter) .
+                "]"
             );
-            
+    
             if (!self::matches_transaction_filter(
                 $description,
                 $this->transaction_filter
@@ -224,30 +268,47 @@ class TransactionsToFireflySender
                 Logger::trace(
                     "Transaction filtered out: " . $description
                 );
+    
                 continue;
             }
-        
+    
             $request = new PostTransactionRequest(
                 $this->firefly_url,
                 $this->firefly_access_token
             );
-
+    
             $request->setBody(
-                self::transform_transaction_to_firefly_request_body($transaction, $this->firefly_account_id, $this->firefly_accounts, $this->regex_match, $this->regex_replace)
+                self::transform_transaction_to_firefly_request_body(
+                    $transaction,
+                    $this->firefly_account_id,
+                    $this->firefly_accounts,
+                    $this->regex_match,
+                    $this->regex_replace
+                )
             );
-
+    
             $response = $request->post();
+    
             if ($response instanceof ValidationErrorResponse) {
-                $errors   = $response->errors->all();
-                $errors[] = "Firefly III request: " . json_encode($request->getBody());
-                $errors[] = "Transaction data: " . print_r($transaction, true);
-                $result[] = array('transaction' => $transaction, 'messages' => $errors);
+                $errors = $response->errors->all();
+    
+                $errors[] = "Firefly III request: " .
+                    json_encode($request->getBody());
+    
+                $errors[] = "Transaction data: " .
+                    print_r($transaction, true);
+    
+                $result[] = array(
+                    'transaction' => $transaction,
+                    'messages' => $errors
+                );
             } else if ($response instanceof PostTransactionResponse) {
-                //everything went fine :)
+                // everything went fine :)
             } else {
                 throw new \Exception('Import went wrong');
             }
         }
+    
         return $result;
     }
 
