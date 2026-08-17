@@ -187,58 +187,105 @@ class TransactionsToFireflySender
 
     private static function matches_transaction_filter(string $description,
                                                        array $transaction_filter
-                                                      ): bool {
+                                                       ): bool 
+    {
         $include = $transaction_filter['include'] ?? [];
         $exclude = $transaction_filter['exclude'] ?? [];
     
+        Logger::trace(
+            "FILTER DEBUG: description=[" . $description . "]"
+        );
+    
+        Logger::trace(
+            "FILTER DEBUG: include=[" . json_encode($include) . "]"
+        );
+    
+        Logger::trace(
+            "FILTER DEBUG: exclude=[" . json_encode($exclude) . "]"
+        );
+    
         /*
          * EXCLUDE hat immer Vorrang.
-         *
-         * Sobald ein Exclude-Filter matcht,
-         * wird die Transaktion nicht importiert.
          */
         foreach ($exclude as $filter) {
             if (!is_string($filter) || $filter === '') {
                 continue;
             }
+    
             $matches = preg_match($filter, $description);
+    
+            Logger::trace(
+                "FILTER DEBUG: exclude regex=[" .
+                $filter .
+                "] result=[" .
+                var_export($matches, true) .
+                "]"
+            );
+    
             if ($matches === false) {
                 throw new \Exception(
                     "Error in transaction exclude filter regular expression: {$filter}"
                 );
             }
+    
             if ($matches === 1) {
+                Logger::trace(
+                    "FILTER DEBUG: EXCLUDED [" . $description . "]"
+                );
+    
                 return false;
             }
         }
+    
         /*
-         * Kein Include-Filter bedeutet:
-         * Alles importieren.
+         * Kein Include-Filter = alles erlauben.
          */
         if (empty($include)) {
+            Logger::trace(
+                "FILTER DEBUG: no include filters -> ACCEPTED"
+            );
+    
             return true;
         }
+    
         /*
-         * Es gibt Include-Filter.
-         * Mindestens einer muss matchen.
+         * Include-Filter:
+         * mindestens einer muss matchen.
          */
         foreach ($include as $filter) {
             if (!is_string($filter) || $filter === '') {
                 continue;
             }
+    
             $matches = preg_match($filter, $description);
+    
+            Logger::trace(
+                "FILTER DEBUG: include regex=[" .
+                $filter .
+                "] result=[" .
+                var_export($matches, true) .
+                "]"
+            );
+    
             if ($matches === false) {
                 throw new \Exception(
                     "Error in transaction include filter regular expression: {$filter}"
                 );
             }
+    
             if ($matches === 1) {
+                Logger::trace(
+                    "FILTER DEBUG: INCLUDED [" . $description . "]"
+                );
+    
                 return true;
             }
         }
-        /*
-         * Kein Include-Filter hat gematcht.
-         */
+    
+        Logger::trace(
+            "FILTER DEBUG: REJECTED [" . $description . "]"
+        );
+    
         return false;
     }
     
